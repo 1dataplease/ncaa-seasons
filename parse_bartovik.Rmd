@@ -1,0 +1,165 @@
+---
+title: "parse_barttovik"
+author: "tw"
+date: "2026-06-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(tictoc)
+library(bigrquery)
+library(dplyr)
+library(stringr) #str_detect, str_sub
+library(tidyr) #replacena
+options(scipen = 999)
+library(readr) #readr::read_tsv
+library(collapse) #fill in missing names where claim outside of encounter
+library(purrr) #to read all tabs
+library(readxl) #read xl
+library(openxlsx) #create xl w sheets
+library(fuzzyjoin) # for join where df$key in df2$key-3,-2-1,+1
+library(data.table) #faster than fuzzyjoin
+# options(gargle_oob_default = TRUE) #does this help cache?
+# options(connectionObserver = NULL) #doesnt work
+
+write_list_to_xlsx <- function(x, sheet_names, file_name) {
+  # Basic checks
+  if (length(x) != length(sheet_names)) {
+    stop("Length of x and sheet_names must match.")
+  }
+  wb <- createWorkbook()
+  for (i in seq_along(x)) {
+    df <- x[[i]]
+    sheet <- sheet_names[[i]]
+    addWorksheet(wb, sheet)
+    # Write as Excel table
+    writeDataTable(
+      wb, sheet, df,
+      startRow = 1, startCol = 1,
+      tableStyle = "None" #TableStyleMedium2 is blue+white
+    )
+    # Auto column widths
+    setColWidths(
+      wb, sheet,
+      cols = 1:ncol(df),
+      widths = "auto"
+    )
+  }
+  saveWorkbook(wb, file_name, overwrite = TRUE)
+}
+```
+
+
+```{r}
+b0 = read_csv('bartovik//0 inputs//2003 drafted seasons since 2008.csv'
+              ,skip=77)
+
+b1 = b0 %>% 
+  #split would work but Sep issue
+  # seperate(`...30`, into = c('') %>% ) %>% 
+  mutate(
+     height = case_when(
+ `...4` == 'Jun-00' ~ '6-0'
+ ,`...4` == 'Jul-00' ~ '7-0'
+ ,str_detect(`...4`
+            ,"\\d+-[A-Za-z]{3}$") ~ paste(
+                                  match(str_extract(`...4`, "[A-Za-z]{3}$"), month.abb),
+                                        str_extract(`...4`, "^\\d+"),
+                                        sep = "-"
+                                          )
+            ,TRUE ~ as.character(`...4`))
+    ,Dunks = if_else(
+      str_detect(Dunks, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(Dunks, "[A-Za-z]{3}$"), month.abb),
+        str_extract(Dunks, "^\\d+"),
+        sep = "-"
+        ),Dunks)
+   ,`close_2P` =  if_else(
+      str_detect(`...30`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`...30`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`...30`, "^\\d+"),
+        sep = "-"
+        ),`...30`)
+   ,`far_2P` =  if_else(
+      str_detect(`...32`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`...32`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`...32`, "^\\d+"),
+        sep = "-"
+        ),`...32`)
+   ,FT =  if_else(
+      str_detect(`...34`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`...34`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`...34`, "^\\d+"),
+        sep = "-"
+        ),`...34`)
+   ,`2P` = if_else(
+      str_detect(`...36`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`...36`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`...36`, "^\\d+"),
+        sep = "-"
+        ),`...36`)
+   ,`3P` = if_else(
+      str_detect(`3P/100`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`3P/100`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`3P/100`, "^\\d+"),
+        sep = "-"
+        ),`3P/100`)
+        ) %>% 
+  separate(Dunks, into = c('Dunks_m', 'Dunks_a'),sep='-') %>% 
+separate(`2P`, into = c('2PM', '2PA'),sep='-') %>% 
+separate(`close_2P`, into = c('close_2PM', 'close_2PA'),sep='-')  %>% 
+separate(`far_2P`, into = c('far_2PM', 'far_2PA'),sep='-') %>% 
+separate(`FT`, into = c('FTM', 'FTA'),sep='-') %>% 
+separate(`3P`, into = c('3PM', '3PA'),sep='-') %>% 
+  select(-c('...4', '...30', '...32', '...34', '...36', '3P/100')) %>% 
+  rename('3P/100'='3PR', '3PR'='...38')
+
+b2 = b1 %>% 
+  rename(class = Player, Player='...5') %>% 
+  select(-Year) %>% 
+  mutate(across(c(28:Reb, close_2PM:far_2PA), as.numeric)) %>% 
+  separate(Player, into = c('player', 'stats_yr'),sep='\\(') %>% 
+  mutate(
+    stats_yr = sub("\\)", "", stats_yr)
+    ,player = str_trim(player)
+    ,stock_pct = Blk+Stl
+   ,`2P_pct` = `2PM`/`2PA`
+   ,close_2P_pct = close_2PM/close_2PA
+   ,far_2P_pct = far_2PM/far_2PA
+   ,`3P_pct` = `3PM`/`3PA`
+     ,`FT_pct` = `FTM`/`FTA`
+         ) %>% 
+  select(Rk, 
+         ,stats_yr=Pts
+         ,player, class, Team ,Conf
+         , Pick, height,Role,G
+         ,9:20
+         , Ast_pct = 'Ast...22'
+         , 22:25, stock_pct, 'FC/40'
+         ,'2PM','2PA', '2P_pct'
+         ,'Dunks_m',
+         ,'close_2PM','close_2PA', 'close_2P_pct'
+         ,'far_2PM','far_2PA', 'far_2P_pct'
+         ,'3PM','3PA', '3P_pct'
+         ,'FTM','FTA', 'FT_pct'
+         ,'3PR', '3P/100'
+         , Pts=Reb, Ast='Ast...43', Reb = '...42'
+         )
+
+b3_yrs = b2 %>% 
+  group_by(player, Pick, height) %>% 
+  mutate(draft_yr = max(stats_yr)) %>% 
+  ungroup() %>% 
+  relocate(draft_yr, .before=Pick) %>% relocate(stats_yr, .before=G)
+
+writexl::write_xlsx(b3_yrs, 'torvik cleaned.xlsx')
+
+```
+
