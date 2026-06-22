@@ -50,9 +50,10 @@ write_list_to_xlsx <- function(x, sheet_names, file_name) {
 }
 ```
 
+#drafts
 
 ```{r}
-b0 = read_csv('bartovik//0 inputs//2003 drafted seasons since 2008.csv'
+b0 = read_csv('bartovik//0 inputs//paste 2003 drafted seasons since 2008.csv'
               ,skip=77)
 
 b1 = b0 %>% 
@@ -84,10 +85,10 @@ b1 = b0 %>%
         sep = "-"
         ),`...30`)
    ,`far_2P` =  if_else(
-      str_detect(`...32`, "\\d+-[A-Za-z]{3}$"),
+      str_detect(str_trim(`...32`), "^(\\d+-[A-Za-z]{3}|[A-Za-z]{3}-\\d+)$"),
       paste(
-        match(str_extract(`...32`, "[A-Za-z]{3}$"), month.abb),
-        str_extract(`...32`, "^\\d+"),
+        match(str_extract(`...32`, "[A-Za-z]{3}"), month.abb),
+        str_extract(`...32`, "\\d+"),
         sep = "-"
         ),`...32`)
    ,FT =  if_else(
@@ -105,12 +106,15 @@ b1 = b0 %>%
         sep = "-"
         ),`...36`)
    ,`3P` = if_else(
-      str_detect(`3P/100`, "\\d+-[A-Za-z]{3}$"),
+     #if find #-3letters OR 3letters-#
+      str_detect(str_trim(`3P/100`), "^(\\d+-[A-Za-z]{3}|[A-Za-z]{3}-\\d+)$"),
       paste(
-        match(str_extract(`3P/100`, "[A-Za-z]{3}$"), month.abb),
-        str_extract(`3P/100`, "^\\d+"),
+        #get the Jan, then switch it with 1
+        match(str_extract(`3P/100`, "[A-Za-z]{3}"), month.abb),
+        #get the digit or 2
+        str_extract(`3P/100`, "\\d+"),
         sep = "-"
-        ),`3P/100`)
+      ),`3P/100`)
         ) %>% 
   separate(Dunks, into = c('Dunks_m', 'Dunks_a'),sep='-') %>% 
 separate(`2P`, into = c('2PM', '2PA'),sep='-') %>% 
@@ -159,7 +163,148 @@ b3_yrs = b2 %>%
   ungroup() %>% 
   relocate(draft_yr, .before=Pick) %>% relocate(stats_yr, .before=G)
 
-writexl::write_xlsx(b3_yrs, 'torvik cleaned.xlsx')
+writexl::write_xlsx(b3_yrs, 'bartovik\\1 outputs\\torvik cleaned.xlsx')
+
+```
+
+#26 prospects
+
+```{r}
+# p0 = readxl::read_excel('bartovik//0 inputs//paste 2003 drafted seasons since 2008.xlsx'
+#               ,skip=79
+#               ,sheet = '2026 top 1850')
+
+p00 = readr::read_csv('bartovik//0 inputs//prospects2.csv'
+              ,skip=77) %>% 
+  select(1:46)
+
+# diff=setdiff(b0, p00)
+
+p1 = p00 %>% 
+  #split would work but Sep issue
+  # seperate(`...30`, into = c('') %>% ) %>% 
+  mutate(
+     height = case_when(
+ `...4` == 'Jun-00' ~ '6-0'
+ ,`...4` == 'Jul-00' ~ '7-0'
+ ,str_detect(`...4`
+            ,"\\d+-[A-Za-z]{3}$") ~ paste(
+                                  match(str_extract(`...4`, "[A-Za-z]{3}$"), month.abb),
+                                        str_extract(`...4`, "^\\d+"),
+                                        sep = "-"
+                                          )
+            ,TRUE ~ as.character(`...4`))
+    ,Dunks = if_else(
+      str_detect(Dunks, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(Dunks, "[A-Za-z]{3}$"), month.abb),
+        str_extract(Dunks, "^\\d+"),
+        sep = "-"
+        ),Dunks)
+   ,`close_2P` =  if_else(
+      str_detect(`Close 2`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`Close 2`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`Close 2`, "^\\d+"),
+        sep = "-"
+        ),`Close 2`)
+   ,`far_2P` =  if_else(
+      str_detect(str_trim(`Far 2`), "^(\\d+-[A-Za-z]{3}|[A-Za-z]{3}-\\d+)$"),
+      paste(
+        match(str_extract(`Far 2`, "[A-Za-z]{3}"), month.abb),
+        str_extract(`Far 2`, "\\d+"),
+        sep = "-"
+        ),`Far 2`)
+   ,FT =  if_else(
+      str_detect(`FT`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`FT`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`FT`, "^\\d+"),
+        sep = "-"
+        ),`FT`)
+   ,`2P` = if_else(
+      str_detect(`2P`, "\\d+-[A-Za-z]{3}$"),
+      paste(
+        match(str_extract(`2P`, "[A-Za-z]{3}$"), month.abb),
+        str_extract(`2P`, "^\\d+"),
+        sep = "-"
+        ),`2P`)
+   ,`3P` = if_else(
+     #if find #-3letters OR 3letters-#
+      str_detect(str_trim(`3P`), "^(\\d+-[A-Za-z]{3}|[A-Za-z]{3}-\\d+)$"),
+      paste(
+        #get the Jan, then switch it with 1
+        match(str_extract(`3P`, "[A-Za-z]{3}"), month.abb),
+        #get the digit or 2
+        str_extract(`3P`, "\\d+"),
+        sep = "-"
+      ),`3P`)
+        ) %>% 
+  separate(Dunks, into = c('Dunks_m', 'Dunks_a'),sep='-') %>% 
+separate(`2P`, into = c('2PM', '2PA'),sep='-') %>% 
+separate(`close_2P`, into = c('close_2PM', 'close_2PA'),sep='-')  %>% 
+separate(`far_2P`, into = c('far_2PM', 'far_2PA'),sep='-') %>% 
+separate(`FT`, into = c('FTM', 'FTA'),sep='-') %>% 
+separate(`3P`, into = c('3PM', '3PA'),sep='-') #%>% 
+  select(-c('...4') # 'Close 2', 'Far 2', 'FT', '2P', '3P')) %>%
+  # rename('3P/100'='3PR', '3PR'='...38')
+
+ p2 = p1 %>% 
+  rename(class = Player, Player='...5') %>% 
+  # select(-Year) %>%
+  mutate(across(c(28:Reb, close_2PM:far_2PA), as.numeric)) %>% 
+  separate(Player, into = c('player', 'stats_yr'),sep='\\(') %>% 
+  mutate(
+    stats_yr = sub("\\)", "", stats_yr)
+    ,player = str_trim(player)
+    ,stock_pct = Blk+Stl
+   ,`2P_pct` = `2PM`/`2PA`
+   ,close_2P_pct = close_2PM/close_2PA
+   ,far_2P_pct = far_2PM/far_2PA
+   ,`3P_pct` = `3PM`/`3PA`
+     ,`FT_pct` = `FTM`/`FTA`
+         )
+p3 = p2 %>% 
+  mutate(stats_yr = paste0('20',stats_yr)) %>% 
+  #cant believe i left age out of b0
+  select(Rk,
+         ,stats_yr
+         ,player, class, Team ,Conf
+         , Pick, height,Role,G
+         ,9:20
+         , Ast_pct = 'Ast...22'
+         , 22:25, stock_pct, 'FC/40'
+         ,'2PM','2PA', '2P_pct'
+         ,'Dunks_m',
+         ,'close_2PM','close_2PA', 'close_2P_pct'
+         ,'far_2PM','far_2PA', 'far_2P_pct'
+         ,'3PM','3PA', '3P_pct'
+         ,'FTM','FTA', 'FT_pct'
+         ,'3PR', Pts='3P/100'
+         ,Ast='Ast...43', Reb
+         )
+
+p3_yrs = p3 %>% 
+  group_by(player, Pick, height) %>% 
+  mutate(draft_yr = max(stats_yr)) %>% 
+  ungroup() %>% 
+  relocate(draft_yr, .before=Pick) %>% relocate(stats_yr, .before=G)
+
+p4_yrs = p3_yrs %>% 
+  mutate(Pick = as.numeric(Pick)
+         ,draft_yr = as.double(draft_yr)
+         ,stats_yr = as.double(stats_yr)
+         )
+
+writexl::write_xlsx(p4_yrs, 'bartovik\\1 outputs\\26 torvik cleaned.xlsx')
+
+```
+
+#bind
+
+```{r}
+bp = bind_rows(b3_yrs, p4_yrs) %>% distinct()
+writexl::write_xlsx(p4_yrs, 'bartovik\\1 outputs\\torvik plus 26.xlsx')
 
 ```
 
